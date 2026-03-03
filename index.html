@@ -1,20 +1,1416 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/TradeCharter/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Trade Plotter – visualize Add/Trim trades from Excel files with interactive charts" />
-    <title>Trade Plotter</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TradeCharter — Excel Trading Chart Viewer</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #0d1117;
+      --surface:   #161b22;
+      --surface2:  #1c2333;
+      --surface3:  #21262d;
+      --border:    #30363d;
+      --accent:    #58a6ff;
+      --text:      #e6edf3;
+      --text-dim:  #8b949e;
+      --green:     #3fb950;
+      --red:       #f85149;
+      --radius:    6px;
+      --radius-lg: 10px;
+    }
+    html { font-size: 14px; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5;
+    }
+    #app { max-width: 1440px; margin: 0 auto; padding: 12px 16px 32px; }
+    header {
+      display: flex; align-items: baseline; gap: 10px;
+      padding: 14px 0 12px; border-bottom: 1px solid var(--border);
+      margin-bottom: 14px; flex-wrap: wrap;
+    }
+    header h1 { font-size: 1.3rem; font-weight: 700; color: var(--accent); letter-spacing: -0.02em; }
+    header .tagline { color: var(--text-dim); font-size: 0.85rem; }
+    .badge {
+      display: inline-flex; align-items: center;
+      font-size: 0.7rem; padding: 2px 7px; border-radius: 20px;
+      font-weight: 600; letter-spacing: 0.03em;
+    }
+    .badge-demo   { background: rgba(248,81,73,0.18); color: var(--red); border: 1px solid rgba(248,81,73,0.4); }
+    .badge-method { background: rgba(88,166,255,0.12); color: var(--accent); border: 1px solid rgba(88,166,255,0.3); }
+    .card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 12px 16px; margin-bottom: 10px;
+    }
+    .card-title {
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--text-dim); margin-bottom: 10px;
+    }
+    .row   { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .row + .row { margin-top: 8px; }
+    .spacer { flex: 1; }
+    label { font-size: 0.82rem; color: var(--text-dim); white-space: nowrap; }
+    select, input[type="date"], input[type="file"] {
+      background: var(--surface2); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--text);
+      padding: 5px 9px; font-size: 0.82rem; font-family: inherit; outline: none;
+      transition: border-color 0.15s;
+    }
+    select:focus, input[type="date"]:focus { border-color: var(--accent); }
+    input[type="file"] { cursor: pointer; padding: 4px 8px; }
+    input[type="file"]::-webkit-file-upload-button {
+      background: var(--surface3); border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text); cursor: pointer; font-size: 0.8rem; padding: 3px 10px; margin-right: 8px;
+    }
+    input[type="checkbox"] { accent-color: var(--accent); width: 13px; height: 13px; cursor: pointer; }
+    .checkbox-label {
+      display: flex; align-items: center; gap: 5px;
+      cursor: pointer; font-size: 0.82rem; user-select: none; color: var(--text);
+    }
+    .btn {
+      background: var(--surface3); border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text); padding: 5px 14px; font-size: 0.82rem; font-family: inherit;
+      cursor: pointer; transition: background 0.15s, border-color 0.15s; white-space: nowrap;
+    }
+    .btn:hover { background: var(--surface2); border-color: var(--accent); }
+    .btn-primary { background: rgba(88,166,255,0.15); border-color: var(--accent); color: var(--accent); }
+    .btn-primary:hover { background: rgba(88,166,255,0.28); }
+    #status-bar { font-size: 0.78rem; color: var(--text-dim); min-height: 18px; margin-top: 6px; }
+    #status-bar.error { color: var(--red); }
+    #status-bar.ok    { color: var(--green); }
+    #mapping-section { display: none; }
+    .mapping-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px; }
+    .mapping-group h3 {
+      font-size: 0.82rem; font-weight: 600; color: var(--text);
+      margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border);
+    }
+    .map-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 0.8rem; }
+    .map-row label { width: 100px; flex-shrink: 0; color: var(--text-dim); }
+    .map-row label .req { color: var(--red); }
+    .map-row select { flex: 1; }
+    .sep { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+    #summary-panel {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 8px; margin-bottom: 10px;
+    }
+    .stat-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 10px 14px;
+    }
+    .stat-label {
+      font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-dim); margin-bottom: 3px;
+    }
+    .stat-value { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .neu { color: var(--text); }
+    #chart-container {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); margin-bottom: 10px; min-height: 520px; overflow: hidden;
+    }
+    details {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); margin-top: 10px;
+    }
+    summary {
+      padding: 10px 16px; cursor: pointer; font-size: 0.82rem;
+      color: var(--text-dim); user-select: none; list-style: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::before { content: '\25B6  '; font-size: 0.7em; }
+    details[open] summary::before { content: '\25BC  '; }
+    summary:hover { color: var(--text); }
+    .sample-content { padding: 4px 16px 16px; }
+    .sample-content h3 { font-size: 0.82rem; font-weight: 600; color: var(--text); margin: 12px 0 4px; }
+    .sample-content p  { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 6px; }
+    .sample-content code {
+      background: var(--surface3); border-radius: 3px;
+      padding: 1px 5px; font-size: 0.78rem; color: var(--accent);
+    }
+    pre {
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 10px 12px; font-size: 0.76rem;
+      font-family: 'SF Mono','Cascadia Code','Fira Code',Consolas,monospace;
+      line-height: 1.6; color: #79c0ff; overflow-x: auto;
+    }
+    #file-name {
+      font-size: 0.78rem; color: var(--text-dim);
+      max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    @media (max-width: 720px) {
+      .mapping-grid { grid-template-columns: 1fr; }
+      #summary-panel { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 480px) {
+      #summary-panel { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===== HEADER ===== -->
+  <header>
+    <h1>TradeCharter</h1>
+    <span class="tagline">Excel Trading Chart Viewer</span>
+    <span id="demo-badge" class="badge badge-demo">DEMO DATA</span>
+    <span class="badge badge-method" title="P&amp;L computed using the average-cost method">Avg-Cost P&amp;L</span>
+  </header>
+
+  <!-- ===== FILE UPLOAD ===== -->
+  <div class="card">
+    <div class="card-title">Data Source</div>
+    <div class="row">
+      <label>Upload .xlsx / .xls:</label>
+      <input type="file" id="file-input" accept=".xlsx,.xls" />
+      <span id="file-name"></span>
+      <span class="spacer"></span>
+      <button class="btn" id="reset-btn">Reset to Demo</button>
+    </div>
+    <div id="status-bar"></div>
+  </div>
+
+  <!-- ===== SHEET / COLUMN MAPPING (shown only when auto-detect fails) ===== -->
+  <div class="card" id="mapping-section">
+    <div class="card-title">Sheet &amp; Column Mapping</div>
+    <div class="row">
+      <label>Prices sheet:</label>
+      <select id="sheet-prices-sel"></select>
+      <label style="margin-left:10px;">Trades sheet:</label>
+      <select id="sheet-trades-sel"></select>
+      <button class="btn btn-primary" id="apply-mapping-btn" style="margin-left:6px;">Apply &amp; Render</button>
+    </div>
+    <hr class="sep" />
+    <div class="mapping-grid">
+      <div class="mapping-group">
+        <h3>Prices Columns</h3>
+        <div class="map-row"><label>Timestamp <span class="req">*</span></label><select id="col-p-ts"></select></div>
+        <div class="map-row"><label>Symbol <span class="req">*</span></label><select id="col-p-sym"></select></div>
+        <div class="map-row"><label>Close <span class="req">*</span></label><select id="col-p-close"></select></div>
+        <div class="map-row"><label>Open</label><select id="col-p-open"><option value="">&#8212; skip &#8212;</option></select></div>
+        <div class="map-row"><label>High</label><select id="col-p-high"><option value="">&#8212; skip &#8212;</option></select></div>
+        <div class="map-row"><label>Low</label><select id="col-p-low"><option value="">&#8212; skip &#8212;</option></select></div>
+        <div class="map-row"><label>Volume</label><select id="col-p-vol"><option value="">&#8212; skip &#8212;</option></select></div>
+        <div class="map-row"><label>Adj Close</label><select id="col-p-adj"><option value="">&#8212; skip &#8212;</option></select></div>
+      </div>
+      <div class="mapping-group">
+        <h3>Trades Columns</h3>
+        <div class="map-row"><label>Timestamp <span class="req">*</span></label><select id="col-t-ts"></select></div>
+        <div class="map-row"><label>Symbol <span class="req">*</span></label><select id="col-t-sym"></select></div>
+        <div class="map-row"><label>Side <span class="req">*</span></label><select id="col-t-side"></select></div>
+        <div class="map-row"><label>Qty <span class="req">*</span></label><select id="col-t-qty"></select></div>
+        <div class="map-row"><label>Exec Price <span class="req">*</span></label><select id="col-t-price"></select></div>
+        <div class="map-row"><label>Strategy</label><select id="col-t-strat"><option value="">&#8212; skip &#8212;</option></select></div>
+        <div class="map-row"><label>Notes</label><select id="col-t-notes"><option value="">&#8212; skip &#8212;</option></select></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== CONTROLS ===== -->
+  <div class="card">
+    <div class="card-title">Chart Controls</div>
+    <div class="row">
+      <label>Symbol:</label>
+      <select id="symbol-sel" style="min-width:110px;"></select>
+      <label style="margin-left:8px;">From:</label>
+      <input type="date" id="date-from" />
+      <label>To:</label>
+      <input type="date" id="date-to" />
+      <label style="margin-left:8px;">Price field:</label>
+      <select id="price-field-sel">
+        <option value="close">Close</option>
+      </select>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <label class="checkbox-label">
+        <input type="checkbox" id="chk-buy" checked />
+        Show BUY markers
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="chk-sell" checked />
+        Show SELL markers
+      </label>
+      <label class="checkbox-label">
+        <input type="checkbox" id="chk-pnl" checked />
+        Show P&amp;L per trade
+      </label>
+    </div>
+  </div>
+
+  <!-- ===== SUMMARY STATS ===== -->
+  <div id="summary-panel">
+    <div class="stat-card">
+      <div class="stat-label">Realized P&amp;L</div>
+      <div class="stat-value neu" id="stat-rpnl">&#8212;</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Unrealized P&amp;L</div>
+      <div class="stat-value neu" id="stat-upnl">&#8212;</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Open Position</div>
+      <div class="stat-value neu" id="stat-pos">&#8212;</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Cost</div>
+      <div class="stat-value neu" id="stat-avgcost">&#8212;</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Trades</div>
+      <div class="stat-value neu" id="stat-ntrades">&#8212;</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Win Rate</div>
+      <div class="stat-value neu" id="stat-winrate">&#8212;</div>
+    </div>
+  </div>
+
+  <!-- ===== CHART ===== -->
+  <div id="chart-container"></div>
+
+  <!-- ===== EXPORT ===== -->
+  <div class="card">
+    <div class="row">
+      <button class="btn btn-primary" id="dl-png-btn">&#8595; Download Chart PNG</button>
+      <button class="btn" id="dl-csv-btn">&#8595; Download Filtered CSV</button>
+    </div>
+  </div>
+
+  <!-- ===== SAMPLE FORMAT REFERENCE ===== -->
+  <details>
+    <summary>Sample workbook format &amp; usage notes</summary>
+    <div class="sample-content">
+      <h3>Sheet: <code>Prices</code></h3>
+      <p>Required: <code>timestamp</code> (or <code>date</code>), <code>symbol</code>, <code>close</code> (or <code>price</code>).
+         Optional: <code>open</code>, <code>high</code>, <code>low</code>, <code>volume</code>, <code>adj_close</code>.</p>
+      <pre>timestamp    symbol  close    open     high     low      volume
+2024-01-02   AAPL    185.20   184.50   186.10   183.90   72543210
+2024-01-02   MSFT    374.85   373.10   376.20   372.50   24581000
+2024-01-03   AAPL    184.10   185.00   185.30   183.20   68902100</pre>
+
+      <h3>Sheet: <code>Trades</code></h3>
+      <p>Required: <code>timestamp</code>, <code>symbol</code>,
+         <code>side</code> (BUY/SELL, B/S, Long/Short, Bot/Sld, Bought/Sold),
+         <code>qty</code> (or <code>quantity</code>/<code>shares</code>),
+         <code>price</code> (execution price).
+         Optional: <code>strategy</code>, <code>notes</code>.</p>
+      <pre>timestamp    symbol  side  qty  price   strategy  notes
+2024-01-05   AAPL    BUY   100  184.40  Momentum  Initial entry
+2024-01-13   AAPL    BUY    50  183.00  Momentum  Add on weakness
+2024-01-22   AAPL    SELL   75  184.37  Momentum  Partial profit
+2024-02-07   AAPL    SELL   75  188.32  Momentum  Close remaining</pre>
+
+      <h3>Timestamp formats accepted</h3>
+      <p>ISO 8601: <code>2024-01-05</code> or <code>2024-01-05T09:30:00</code><br/>
+         US date: <code>01/05/2024</code> or <code>1/5/2024</code><br/>
+         Excel serial number (auto-detected)</p>
+
+      <h3>P&amp;L Method &#8212; Average Cost</h3>
+      <p>Each <strong>BUY</strong> updates the running average cost:
+         <code>avgCost = (avgCost &times; pos + execPrice &times; qty) / (pos + qty)</code>.<br/>
+         Each <strong>SELL</strong> realises P&amp;L:
+         <code>P&amp;L = (execPrice &#8722; avgCost) &times; qty</code>.
+         Partial fills are handled correctly. If no price bar exists for a trade date,
+         the nearest prior bar is used (indicated by a warning in the hover tooltip).</p>
+
+      <h3>Flexible sheet names</h3>
+      <p>If your workbook uses custom sheet names (e.g. <em>OHLC</em>, <em>Blotter</em>)
+         the <strong>Sheet &amp; Column Mapping</strong> panel appears automatically so you
+         can select the correct sheets and map columns.</p>
+    </div>
+  </details>
+
+</div><!-- /#app -->
+
+<!-- ===== CDN LIBRARIES ===== -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+<script>
+'use strict';
+
+/* =============================================================
+   HARD-CODED DEMO DATA
+   Two symbols: AAPL and MSFT, Jan-Feb 2024 (approximate prices).
+   Jan 13 is Saturday (no price bar) — tests nearest-prior-price logic.
+   Trades produce a mix of profitable and breakeven closes to show
+   the P&L annotation and summary panel features.
+   ============================================================= */
+
+const DEMO_PRICES = (function() {
+  // [date, symbol, close, open, high, low, volume]
+  var raw = [
+    ['2024-01-02','AAPL',185.20,184.50,186.10,183.90,72543210],
+    ['2024-01-02','MSFT',374.85,373.10,376.20,372.50,24581000],
+    ['2024-01-03','AAPL',184.10,185.00,185.30,183.20,68902100],
+    ['2024-01-03','MSFT',375.40,374.90,377.00,374.10,22341500],
+    ['2024-01-04','AAPL',181.90,184.00,184.20,181.00,89102300],
+    ['2024-01-04','MSFT',373.20,375.10,375.30,372.00,28901200],
+    ['2024-01-05','AAPL',184.40,182.00,185.10,181.80,77812000],
+    ['2024-01-05','MSFT',375.10,373.50,376.80,373.00,25012000],
+    ['2024-01-08','AAPL',185.56,184.50,186.20,184.00,72341000],
+    ['2024-01-08','MSFT',374.02,375.00,375.60,373.00,20981000],
+    ['2024-01-09','AAPL',185.14,185.60,186.40,184.80,71230000],
+    ['2024-01-09','MSFT',372.65,374.00,374.50,371.90,23150000],
+    ['2024-01-10','AAPL',186.19,185.00,186.40,184.10,76021000],
+    ['2024-01-10','MSFT',378.91,373.00,379.50,372.80,31402000],
+    ['2024-01-11','AAPL',186.54,186.20,186.90,185.10,53102000],
+    ['2024-01-11','MSFT',376.17,378.90,379.20,375.50,22301000],
+    ['2024-01-12','AAPL',185.92,186.60,187.10,185.00,62904000],
+    ['2024-01-12','MSFT',374.30,376.10,376.80,373.90,20104000],
+    ['2024-01-16','AAPL',183.63,184.50,184.90,183.00,65213000],
+    ['2024-01-16','MSFT',388.47,375.00,389.10,374.80,39102000],
+    ['2024-01-17','AAPL',182.32,183.50,183.90,181.80,71024000],
+    ['2024-01-17','MSFT',388.11,388.50,389.60,387.10,25103000],
+    ['2024-01-18','AAPL',181.18,182.30,182.80,180.90,70123000],
+    ['2024-01-18','MSFT',386.28,388.00,388.50,385.50,22901000],
+    ['2024-01-19','AAPL',182.68,181.00,183.20,180.80,76210000],
+    ['2024-01-19','MSFT',391.22,387.00,392.00,386.50,28103000],
+    ['2024-01-22','AAPL',184.37,182.50,184.80,182.30,72901000],
+    ['2024-01-22','MSFT',394.60,391.50,395.10,391.00,25801000],
+    ['2024-01-23','AAPL',185.04,184.30,185.60,183.80,68503000],
+    ['2024-01-23','MSFT',399.04,395.00,399.80,394.50,29012000],
+    ['2024-01-24','AAPL',194.17,185.20,194.40,184.90,98231000],
+    ['2024-01-24','MSFT',404.87,400.00,405.30,399.50,38904000],
+    ['2024-01-25','AAPL',192.35,194.00,194.50,191.80,77021000],
+    ['2024-01-25','MSFT',406.32,405.00,407.10,404.20,29104000],
+    ['2024-01-26','AAPL',191.27,192.00,192.70,190.50,60103000],
+    ['2024-01-26','MSFT',404.55,406.00,406.80,403.90,21305000],
+    ['2024-01-29','AAPL',189.30,191.00,191.50,188.90,68401000],
+    ['2024-01-29','MSFT',402.04,404.50,405.10,401.80,22801000],
+    ['2024-01-30','AAPL',188.04,189.20,189.90,187.50,70231000],
+    ['2024-01-30','MSFT',408.65,403.00,409.20,402.80,32901000],
+    ['2024-01-31','AAPL',186.86,188.00,188.40,186.20,71042000],
+    ['2024-01-31','MSFT',404.26,408.50,409.00,403.50,23041000],
+    ['2024-02-01','AAPL',186.19,186.90,187.50,185.70,59802000],
+    ['2024-02-01','MSFT',414.21,405.00,414.80,404.50,38401000],
+    ['2024-02-02','AAPL',185.35,186.00,186.40,184.80,62103000],
+    ['2024-02-02','MSFT',416.37,414.50,417.00,413.80,29504000],
+    ['2024-02-05','AAPL',187.68,185.50,188.00,185.10,67812000],
+    ['2024-02-05','MSFT',418.61,416.50,419.20,416.10,23102000],
+    ['2024-02-06','AAPL',189.30,188.00,189.80,187.50,65901000],
+    ['2024-02-06','MSFT',415.40,418.60,419.00,415.00,21803000],
+    ['2024-02-07','AAPL',188.32,189.20,189.70,187.90,60203000],
+    ['2024-02-07','MSFT',420.45,416.00,421.00,415.50,27901000],
+    ['2024-02-08','AAPL',188.82,188.50,189.40,188.00,55102000],
+    ['2024-02-08','MSFT',418.98,420.50,421.10,418.20,23601000],
+    ['2024-02-09','AAPL',188.38,188.80,189.20,187.60,52801000],
+    ['2024-02-09','MSFT',415.73,418.90,419.30,415.50,22104000],
+  ];
+  return raw.map(function(r) {
+    return {
+      timestamp: new Date(r[0] + 'T00:00:00'),
+      symbol: r[1], close: r[2], open: r[3], high: r[4], low: r[5], volume: r[6], adj_close: null
+    };
+  });
+})();
+
+const DEMO_TRADES = (function() {
+  // [date, symbol, side, qty, price, strategy, notes]
+  // Jan 13 = Saturday: no price bar -> tests nearest-prior logic
+  var raw = [
+    ['2024-01-05','AAPL','BUY', 100, 184.40,'Momentum','Initial entry on bounce'],
+    ['2024-01-13','AAPL','BUY',  50, 183.00,'Momentum','Add on weakness (weekend date - nearest price is Jan 12)'],
+    ['2024-01-22','AAPL','SELL', 75, 184.37,'Momentum','Partial profit after breakout'],
+    ['2024-01-30','AAPL','SELL', 40, 188.04,'Momentum','Scale out on continued strength'],
+    ['2024-02-07','AAPL','SELL', 35, 188.32,'Momentum','Close remaining position'],
+    ['2024-01-05','MSFT','BUY',  50, 375.10,'Swing',   'Entry on breakout'],
+    ['2024-01-25','MSFT','SELL', 25, 406.32,'Swing',   'Partial sell at $406 target'],
+    ['2024-02-07','MSFT','SELL', 25, 420.45,'Swing',   'Close remaining on continued strength'],
+  ];
+  return raw.map(function(r) {
+    return {
+      timestamp: new Date(r[0] + 'T00:00:00'),
+      symbol: r[1], side: r[2], qty: r[3], price: r[4], strategy: r[5], notes: r[6]
+    };
+  });
+})();
+
+/* =============================================================
+   APPLICATION STATE
+   ============================================================= */
+var state = {
+  prices:       [],   // [{timestamp, symbol, close, open, high, low, volume, adj_close}]
+  trades:       [],   // [{timestamp, symbol, side, qty, price, strategy, notes}]
+  usingDemo:    true,
+  _rawWorkbook: null, // SheetJS workbook retained for re-parse on mapping changes
+  _rawPRows:    null, // raw price row objects from selected sheet
+  _rawTRows:    null, // raw trade row objects from selected sheet
+};
+
+/* =============================================================
+   TIMESTAMP PARSING
+   Handles: Excel serial number, JS Date, ISO string (YYYY-MM-DD[Thh:mm:ss]),
+            US date MM/DD/YYYY, fallback to Date constructor.
+   ============================================================= */
+function parseTimestamp(val) {
+  if (val == null || val === '') return null;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+
+  if (typeof val === 'number') {
+    // Excel date serial: days since 1899-12-30 (corrects for the 1900 leap-year bug)
+    var ms = Math.round((val - 25569) * 86400 * 1000);
+    var d  = new Date(ms);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  var s = String(val).trim();
+  if (!s) return null;
+
+  // ISO 8601: YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    var d2 = new Date(s.length === 10 ? s + 'T00:00:00' : s);
+    return isNaN(d2.getTime()) ? null : d2;
+  }
+
+  // US: MM/DD/YYYY or M/D/YYYY
+  var usSlash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (usSlash) {
+    var d3 = new Date(+usSlash[3], +usSlash[1] - 1, +usSlash[2]);
+    return isNaN(d3.getTime()) ? null : d3;
+  }
+
+  // MM-DD-YYYY
+  var usDash = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})/);
+  if (usDash) {
+    var d4 = new Date(+usDash[3], +usDash[1] - 1, +usDash[2]);
+    return isNaN(d4.getTime()) ? null : d4;
+  }
+
+  // Fallback
+  var d5 = new Date(s);
+  return isNaN(d5.getTime()) ? null : d5;
+}
+
+/** Date -> 'YYYY-MM-DD' (for date inputs) */
+function toDateInput(d) {
+  if (!d) return '';
+  return d.toISOString().slice(0, 10);
+}
+
+/** Date -> readable string */
+function toDisplay(d) {
+  if (!d) return '';
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/* =============================================================
+   SIDE NORMALIZATION
+   B / BUY / LONG / BOT / BOUGHT  -> 'BUY'
+   S / SELL / SHORT / SLD / SOLD  -> 'SELL'
+   ============================================================= */
+function normalizeSide(val) {
+  if (val == null) return 'UNKNOWN';
+  var v = String(val).trim().toUpperCase();
+  if (['B','BUY','LONG','L','BOT','BOUGHT'].indexOf(v) !== -1) return 'BUY';
+  if (['S','SELL','SHORT','SL','SLD','SOLD'].indexOf(v) !== -1) return 'SELL';
+  return v;
+}
+
+/* =============================================================
+   NUMBER FORMATTING
+   ============================================================= */
+function addCommas(n) {
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+function fmtMoney(n, dec) {
+  if (n == null || isNaN(n)) return '\u2014';
+  dec = dec == null ? 2 : dec;
+  var sign = n >= 0 ? '+' : '\u2212';
+  return sign + '$' + addCommas(Math.abs(n).toFixed(dec));
+}
+function fmtMoneyAbs(n, dec) {
+  if (n == null || isNaN(n)) return '\u2014';
+  dec = dec == null ? 2 : dec;
+  var sign = n < 0 ? '\u2212' : '';
+  return sign + '$' + addCommas(Math.abs(n).toFixed(dec));
+}
+function fmtNum(n) {
+  if (n == null || isNaN(n)) return '\u2014';
+  return (+n).toLocaleString();
+}
+
+/* =============================================================
+   SHEETJS PARSING
+   ============================================================= */
+
+/**
+ * Convert a SheetJS worksheet to { headers: string[], rows: object[] }.
+ * Each row is a plain object keyed by header strings.
+ */
+function wsToObjects(ws) {
+  if (!ws || !ws['!ref']) return { headers: [], rows: [] };
+  var range   = XLSX.utils.decode_range(ws['!ref']);
+  var headers = [];
+
+  for (var c = range.s.c; c <= range.e.c; c++) {
+    var cell = ws[XLSX.utils.encode_cell({ r: range.s.r, c: c })];
+    headers.push(cell ? String(cell.v).trim() : 'col' + c);
+  }
+
+  var rows = [];
+  for (var r = range.s.r + 1; r <= range.e.r; r++) {
+    var row     = {};
+    var hasData = false;
+    for (var c2 = range.s.c; c2 <= range.e.c; c2++) {
+      var cell2  = ws[XLSX.utils.encode_cell({ r: r, c: c2 })];
+      var hdr    = headers[c2 - range.s.c];
+      row[hdr]   = cell2 ? cell2.v : null;
+      if (cell2 && cell2.v != null) hasData = true;
+    }
+    if (hasData) rows.push(row);
+  }
+  return { headers: headers, rows: rows };
+}
+
+/**
+ * Known column-name aliases for auto-detection.
+ * Checked in order (exact first, then partial).
+ */
+var COL_ALIASES = {
+  prices: {
+    ts:    ['timestamp','date','datetime','time','dt','day','trade_date'],
+    sym:   ['symbol','ticker','sym','stock','instrument','security','asset'],
+    close: ['close','price','close_price','closing','last','settlement','close price'],
+    open:  ['open','open_price','opening','open price'],
+    high:  ['high','high_price','max','high price'],
+    low:   ['low','low_price','min','low price'],
+    vol:   ['volume','vol','shares_traded'],
+    adj:   ['adj_close','adj close','adjusted_close','adjusted close','adjclose'],
+  },
+  trades: {
+    ts:    ['timestamp','date','datetime','time','dt','trade_date','fill_time','exec_time'],
+    sym:   ['symbol','ticker','sym','stock','instrument','security','asset'],
+    side:  ['side','action','type','direction','buy_sell','bs','transaction','b/s'],
+    qty:   ['qty','quantity','shares','size','units','amount','contracts','filled_qty'],
+    price: ['price','exec_price','execution_price','fill_price','trade_price','avg_price'],
+    strat: ['strategy','strat','algo','system','setup','tag'],
+    notes: ['notes','note','comment','comments','description','memo','remark'],
+  }
+};
+
+/** Auto-map headers to field names using alias lists. Returns object {field: headerName}. */
+function autoMapCols(headers, type) {
+  var lower  = headers.map(function(h) { return String(h).toLowerCase().trim(); });
+  var result = {};
+  var aliases = COL_ALIASES[type];
+
+  for (var field in aliases) {
+    var found = '';
+    var aliasArr = aliases[field];
+    // Exact match first
+    for (var i = 0; i < aliasArr.length; i++) {
+      var idx = lower.indexOf(aliasArr[i]);
+      if (idx !== -1) { found = headers[idx]; break; }
+    }
+    // Partial match fallback
+    if (!found) {
+      for (var j = 0; j < aliasArr.length; j++) {
+        var pidx = lower.findIndex(function(h) {
+          return h.includes(aliasArr[j]) || aliasArr[j].includes(h);
+        }.bind(null, aliasArr[j]));
+        // Redo with closure-safe approach
+        for (var k2 = 0; k2 < lower.length; k2++) {
+          if (lower[k2].includes(aliasArr[j]) || aliasArr[j].includes(lower[k2])) {
+            found = headers[k2]; break;
+          }
+        }
+        if (found) break;
+      }
+    }
+    result[field] = found || '';
+  }
+  return result;
+}
+
+/** Build standardized price rows from raw row objects + column mapping. */
+function buildPrices(rows, m) {
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r   = rows[i];
+    var ts  = parseTimestamp(r[m.ts]);
+    if (!ts) continue;
+    var cl  = parseFloat(r[m.close]);
+    if (isNaN(cl)) continue;
+    out.push({
+      timestamp: ts,
+      symbol:    String(r[m.sym] || '').trim().toUpperCase(),
+      close:     cl,
+      open:      m.open ? parseFloat(r[m.open])  : null,
+      high:      m.high ? parseFloat(r[m.high])  : null,
+      low:       m.low  ? parseFloat(r[m.low])   : null,
+      volume:    m.vol  ? parseFloat(r[m.vol])   : null,
+      adj_close: m.adj  ? parseFloat(r[m.adj])   : null,
+    });
+  }
+  return out;
+}
+
+/** Build standardized trade rows from raw row objects + column mapping. */
+function buildTrades(rows, m) {
+  var out = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r     = rows[i];
+    var ts    = parseTimestamp(r[m.ts]);
+    if (!ts) continue;
+    var qty   = parseFloat(r[m.qty]);
+    var price = parseFloat(r[m.price]);
+    if (isNaN(qty) || isNaN(price)) continue;
+    out.push({
+      timestamp: ts,
+      symbol:   String(r[m.sym] || '').trim().toUpperCase(),
+      side:     normalizeSide(r[m.side]),
+      qty:      qty,
+      price:    price,
+      strategy: m.strat ? String(r[m.strat] || '').trim() : '',
+      notes:    m.notes ? String(r[m.notes] || '').trim() : '',
+    });
+  }
+  return out;
+}
+
+/* =============================================================
+   ANALYTICS ENGINE — AVERAGE COST METHOD
+   -------------------------------------------------
+   BUY:  avgCost = (avgCost * pos + execPrice * qty) / (pos + qty)
+         position += qty
+   SELL: tradePnL = (execPrice - avgCost) * qty
+         cumulPnL += tradePnL
+         position -= qty
+         when position <= 0: reset avgCost (allow short-side tracking)
+   Partial fills: handled naturally — each trade is processed
+   independently; the avgCost only changes on BUY.
+   ============================================================= */
+function computeAnalytics(symbolTrades) {
+  var sorted = symbolTrades.slice().sort(function(a, b) { return a.timestamp - b.timestamp; });
+  var position = 0;
+  var avgCost  = 0;
+  var cumulPnL = 0;
+  var enriched = [];
+
+  for (var i = 0; i < sorted.length; i++) {
+    var t     = sorted[i];
+    var qty   = +t.qty;
+    var price = +t.price;
+
+    if (t.side === 'BUY') {
+      // Weighted-average cost update
+      if (position + qty > 0) {
+        avgCost = (avgCost * position + price * qty) / (position + qty);
+      }
+      position += qty;
+      enriched.push(Object.assign({}, t, {
+        tradePnL: null, position: position, avgCost: avgCost, cumulPnL: cumulPnL
+      }));
+
+    } else if (t.side === 'SELL') {
+      var tradePnL = (price - avgCost) * qty;
+      cumulPnL    += tradePnL;
+      position    -= qty;
+      if (position <= 0) {
+        // If going net short, track short cost at this price
+        avgCost  = position < 0 ? price : 0;
+      }
+      enriched.push(Object.assign({}, t, {
+        tradePnL: tradePnL, position: position, avgCost: avgCost, cumulPnL: cumulPnL
+      }));
+
+    } else {
+      enriched.push(Object.assign({}, t, {
+        tradePnL: null, position: position, avgCost: avgCost, cumulPnL: cumulPnL
+      }));
+    }
+  }
+  return enriched;
+}
+
+/**
+ * Find the nearest prior (or same-day) price bar for a given timestamp.
+ * Falls back to the nearest future bar if no prior bar exists.
+ * Returns { value, isExact, daysDiff } or null.
+ */
+function nearestPriorPrice(sortedPrices, ts, field) {
+  var tsMs   = ts.getTime();
+  var best   = null;
+  var bestDiff = Infinity;
+
+  // Prefer prior or exact
+  for (var i = 0; i < sortedPrices.length; i++) {
+    var p    = sortedPrices[i];
+    var diff = tsMs - p.timestamp.getTime();
+    if (diff >= 0 && diff < bestDiff) { bestDiff = diff; best = p; }
+  }
+  // Fallback: nearest future
+  if (!best) {
+    for (var j = 0; j < sortedPrices.length; j++) {
+      var p2   = sortedPrices[j];
+      var diff2 = Math.abs(tsMs - p2.timestamp.getTime());
+      if (diff2 < bestDiff) { bestDiff = diff2; best = p2; }
+    }
+  }
+  if (!best) return null;
+
+  var val = (field && best[field] != null && !isNaN(best[field])) ? best[field] : best.close;
+  return { value: val, isExact: bestDiff === 0, daysDiff: Math.round(bestDiff / 86400000) };
+}
+
+/* =============================================================
+   SYMBOL & DATE HELPERS
+   ============================================================= */
+function getAllSymbols(prices, trades) {
+  var set = {};
+  prices.forEach(function(p) { if (p.symbol) set[p.symbol] = 1; });
+  trades.forEach(function(t) { if (t.symbol) set[t.symbol] = 1; });
+  return Object.keys(set).sort();
+}
+
+function pricesDateRange(prices, symbol) {
+  var rows = prices.filter(function(p) { return p.symbol === symbol; });
+  if (!rows.length) return { min: null, max: null };
+  var ms = rows.map(function(p) { return p.timestamp.getTime(); });
+  return { min: new Date(Math.min.apply(null, ms)), max: new Date(Math.max.apply(null, ms)) };
+}
+
+/**
+ * Jitter: for trades sharing the exact same timestamp, shift x by 2-hour
+ * increments so markers don't perfectly overlap on the chart.
+ */
+function applyJitter(trades) {
+  var groups = {};
+  trades.forEach(function(t) {
+    var k = t.timestamp.getTime();
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(t);
+  });
+  return trades.map(function(t) {
+    var k     = t.timestamp.getTime();
+    var group = groups[k];
+    if (group.length === 1) return Object.assign({}, t, { jTs: t.timestamp });
+    var idx   = group.indexOf(t);
+    return Object.assign({}, t, { jTs: new Date(k + idx * 2 * 3600 * 1000) });
+  });
+}
+
+/* =============================================================
+   STATUS BAR
+   ============================================================= */
+function setStatus(msg, type) {
+  var el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.className   = type || '';
+}
+
+/* =============================================================
+   CHART RENDERING
+   ============================================================= */
+function renderChart() {
+  var symbol     = document.getElementById('symbol-sel').value;
+  var dateFrom   = document.getElementById('date-from').value;
+  var dateTo     = document.getElementById('date-to').value;
+  var priceField = document.getElementById('price-field-sel').value || 'close';
+  var showBuy    = document.getElementById('chk-buy').checked;
+  var showSell   = document.getElementById('chk-sell').checked;
+  var showPnL    = document.getElementById('chk-pnl').checked;
+
+  if (!symbol) return;
+
+  var fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00') : null;
+  var toTs   = dateTo   ? new Date(dateTo   + 'T23:59:59') : null;
+
+  // Filter & sort prices for this symbol and date range
+  var filtPrices = state.prices
+    .filter(function(p) {
+      return p.symbol === symbol &&
+        (!fromTs || p.timestamp >= fromTs) &&
+        (!toTs   || p.timestamp <= toTs);
+    })
+    .sort(function(a, b) { return a.timestamp - b.timestamp; });
+
+  // All trades for this symbol (analytics needs full history for correct running avg cost)
+  var allSymTrades = state.trades
+    .filter(function(t) { return t.symbol === symbol; })
+    .sort(function(a, b) { return a.timestamp - b.timestamp; });
+
+  var allEnriched = computeAnalytics(allSymTrades);
+
+  // Filter enriched trades to display date window
+  var dispEnriched = allEnriched.filter(function(t) {
+    return (!fromTs || t.timestamp >= fromTs) && (!toTs || t.timestamp <= toTs);
+  });
+
+  // Last price bar in view (for unrealized P&L)
+  var lastBar   = filtPrices.length ? filtPrices[filtPrices.length - 1] : null;
+  var lastPrice = lastBar ? (lastBar[priceField] != null ? lastBar[priceField] : lastBar.close) : null;
+
+  // Update summary stats
+  var lastState = allEnriched.length ? allEnriched[allEnriched.length - 1] : null;
+  updateSummary(lastState, lastPrice, allEnriched);
+
+  /* ---- Price line trace ---- */
+  var priceLine = {
+    x:    filtPrices.map(function(p) { return p.timestamp; }),
+    y:    filtPrices.map(function(p) { return p[priceField] != null ? p[priceField] : p.close; }),
+    type: 'scatter',
+    mode: 'lines',
+    name: symbol + ' ' + (priceField === 'adj_close' ? 'Adj Close' : 'Close'),
+    line: { color: '#4a9eff', width: 2 },
+    hovertemplate: '<b>%{x|%b %d, %Y}</b><br>%{y:$.2f}<extra></extra>',
+  };
+
+  /* ---- Separate BUY / SELL lists ---- */
+  var buys  = applyJitter(dispEnriched.filter(function(t) { return t.side === 'BUY';  }));
+  var sells = applyJitter(dispEnriched.filter(function(t) { return t.side === 'SELL'; }));
+
+  /**
+   * Annotate each trade with its nearest-prior price info.
+   * The marker y-value is always the trade's own execution price
+   * (most informative), not the chart's price line value.
+   */
+  function resolvePoints(trades) {
+    return trades.map(function(t) {
+      var np = nearestPriorPrice(filtPrices, t.timestamp, priceField);
+      return Object.assign({}, t, { markerY: t.price, npi: np });
+    });
+  }
+  var buysR  = resolvePoints(buys);
+  var sellsR = resolvePoints(sells);
+
+  /** Build per-point Plotly hover text (array of strings, one per data point). */
+  function makeHovers(trades, sideLabel) {
+    return trades.map(function(t) {
+      var lines = [
+        '<b>' + sideLabel + '</b>',
+        'Date: ' + toDisplay(t.timestamp),
+        'Qty: ' + fmtNum(t.qty) + ' sh',
+        'Exec price: ' + fmtMoneyAbs(t.price),
+      ];
+      if (t.strategy) lines.push('Strategy: ' + t.strategy);
+      if (t.notes)    lines.push('Notes: ' + t.notes);
+      lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
+      lines.push('Position after: ' + fmtNum(t.position) + ' sh');
+      lines.push('Avg cost: ' + fmtMoneyAbs(t.avgCost));
+      if (showPnL && t.tradePnL != null) {
+        var arrow = t.tradePnL >= 0 ? '\u25b2' : '\u25bc';
+        lines.push('Trade P&L: ' + arrow + ' ' + fmtMoney(t.tradePnL));
+        lines.push('Cumul P&L: ' + fmtMoney(t.cumulPnL));
+      }
+      if (t.npi && !t.npi.isExact && t.npi.daysDiff > 0) {
+        lines.push('\u26a0 No price bar on this date');
+        lines.push('  (nearest prior: ' + t.npi.daysDiff + 'd back, $' + t.npi.value.toFixed(2) + ')');
+      }
+      return lines.join('<br>') + '<extra></extra>';
+    });
+  }
+
+  var buyTrace = {
+    x:             buysR.map(function(t) { return t.jTs; }),
+    y:             buysR.map(function(t) { return t.markerY; }),
+    type:          'scatter',
+    mode:          'markers',
+    name:          'BUY',
+    visible:       showBuy ? true : 'legendonly',
+    marker: {
+      symbol: 'triangle-up',
+      color:  '#3fb950',
+      size:   15,
+      line:   { color: '#1a6b28', width: 1.5 },
+    },
+    hovertemplate: makeHovers(buysR, 'BUY'),
+    hoverlabel:    { bgcolor: '#0d2818', bordercolor: '#3fb950', font: { color: '#d0ffd8', size: 12 } },
+  };
+
+  var sellTrace = {
+    x:             sellsR.map(function(t) { return t.jTs; }),
+    y:             sellsR.map(function(t) { return t.markerY; }),
+    type:          'scatter',
+    mode:          'markers',
+    name:          'SELL',
+    visible:       showSell ? true : 'legendonly',
+    marker: {
+      symbol: 'triangle-down',
+      color:  '#f85149',
+      size:   15,
+      line:   { color: '#7a1a18', width: 1.5 },
+    },
+    hovertemplate: makeHovers(sellsR, 'SELL'),
+    hoverlabel:    { bgcolor: '#2d0c0a', bordercolor: '#f85149', font: { color: '#ffd0ce', size: 12 } },
+  };
+
+  /* ---- P&L callout annotations on SELL markers ---- */
+  var annotations = [];
+  if (showPnL) {
+    sellsR.forEach(function(t) {
+      if (t.tradePnL == null) return;
+      var win = t.tradePnL >= 0;
+      annotations.push({
+        x:           t.jTs,
+        y:           t.markerY,
+        xref:        'x',
+        yref:        'y',
+        text:        fmtMoney(t.tradePnL),
+        showarrow:   true,
+        arrowhead:   2,
+        arrowsize:   0.8,
+        arrowcolor:  win ? '#3fb950' : '#f85149',
+        ax:          22,
+        ay:          -34,
+        font:        { size: 11, color: win ? '#3fb950' : '#f85149', family: 'monospace' },
+        bgcolor:     'rgba(13,17,23,0.88)',
+        bordercolor: win ? '#3fb950' : '#f85149',
+        borderwidth: 1,
+        borderpad:   3,
+      });
+    });
+  }
+
+  /* ---- Layout ---- */
+  var demoTag = state.usingDemo
+    ? ' <span style="color:#f85149;font-size:0.75em;font-weight:400">[DEMO DATA]</span>' : '';
+
+  var layout = {
+    paper_bgcolor: '#161b22',
+    plot_bgcolor:  '#0d1117',
+    font: { color: '#e6edf3', family: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' },
+    title: {
+      text:    symbol + '  \u2014  Price History &amp; Trades' + demoTag,
+      font:    { size: 15, color: '#e6edf3' },
+      x:       0.01,
+      xanchor: 'left',
+    },
+    xaxis: {
+      type:        'date',
+      gridcolor:   '#21262d',
+      linecolor:   '#30363d',
+      tickcolor:   '#30363d',
+      tickfont:    { size: 11, color: '#8b949e' },
+      rangeslider: { visible: true, bgcolor: '#0d1117', thickness: 0.07 },
+    },
+    yaxis: {
+      title:      { text: 'Price (USD)', font: { size: 11, color: '#8b949e' } },
+      gridcolor:  '#21262d',
+      linecolor:  '#30363d',
+      tickcolor:  '#30363d',
+      tickfont:   { size: 11, color: '#8b949e' },
+      tickformat: '$.2f',
+    },
+    legend: {
+      bgcolor:     'rgba(22,27,34,0.92)',
+      bordercolor: '#30363d',
+      borderwidth: 1,
+      font:        { size: 12 },
+      x: 1.01, y: 1, xanchor: 'left',
+    },
+    margin:        { l: 70, r: 20, t: 48, b: 50 },
+    hovermode:     'closest',
+    hoverdistance: 20,
+    annotations:   annotations,
+  };
+
+  var config = {
+    responsive:   true,
+    displayModeBar: true,
+    modeBarButtonsToRemove: ['lasso2d', 'select2d'],
+    toImageButtonOptions: { format: 'png', filename: symbol + '_tradechart', scale: 2 },
+  };
+
+  Plotly.react('chart-container', [priceLine, buyTrace, sellTrace], layout, config);
+}
+
+/* =============================================================
+   SUMMARY PANEL
+   ============================================================= */
+function updateSummary(lastTrade, lastPrice, allEnriched) {
+  function setEl(id, val, cls) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = val;
+    el.className   = 'stat-value ' + (cls || 'neu');
+  }
+
+  if (!lastTrade) {
+    ['stat-rpnl','stat-upnl','stat-pos','stat-avgcost','stat-ntrades','stat-winrate']
+      .forEach(function(id) { setEl(id, '\u2014', 'neu'); });
+    return;
+  }
+
+  var rpnl = lastTrade.cumulPnL;
+  setEl('stat-rpnl', fmtMoneyAbs(rpnl), rpnl >= 0 ? 'pos' : 'neg');
+
+  if (lastTrade.position > 0 && lastPrice != null && lastTrade.avgCost > 0) {
+    var upnl = lastTrade.position * (lastPrice - lastTrade.avgCost);
+    setEl('stat-upnl', fmtMoneyAbs(upnl), upnl >= 0 ? 'pos' : 'neg');
+  } else {
+    setEl('stat-upnl', '\u2014', 'neu');
+  }
+
+  setEl('stat-pos',     fmtNum(lastTrade.position) + ' sh', 'neu');
+  setEl('stat-avgcost', lastTrade.avgCost > 0 ? fmtMoneyAbs(lastTrade.avgCost) : '\u2014', 'neu');
+  setEl('stat-ntrades', allEnriched.length.toString(), 'neu');
+
+  var sells = allEnriched.filter(function(t) { return t.side === 'SELL' && t.tradePnL != null; });
+  if (sells.length) {
+    var wins = sells.filter(function(t) { return t.tradePnL > 0; }).length;
+    var wr   = (wins / sells.length * 100).toFixed(0);
+    setEl('stat-winrate', wr + '% (' + wins + '/' + sells.length + ')', +wr >= 50 ? 'pos' : 'neg');
+  } else {
+    setEl('stat-winrate', '\u2014', 'neu');
+  }
+}
+
+/* =============================================================
+   EXPORT
+   ============================================================= */
+
+/** Download the displayed chart as PNG using Plotly.toImage. */
+function downloadPNG() {
+  var symbol = document.getElementById('symbol-sel').value || 'chart';
+  Plotly.toImage('chart-container', { format: 'png', scale: 2 })
+    .then(function(url) {
+      var a    = document.createElement('a');
+      a.href   = url;
+      a.download = symbol + '_tradechart.png';
+      a.click();
+    })
+    .catch(function(err) { setStatus('PNG export failed: ' + err.message, 'error'); });
+}
+
+/** Download filtered prices + trades with P&L as CSV. */
+function downloadCSV() {
+  var symbol   = document.getElementById('symbol-sel').value;
+  var dateFrom = document.getElementById('date-from').value;
+  var dateTo   = document.getElementById('date-to').value;
+
+  var fromTs = dateFrom ? new Date(dateFrom + 'T00:00:00') : null;
+  var toTs   = dateTo   ? new Date(dateTo   + 'T23:59:59') : null;
+
+  var fp = state.prices
+    .filter(function(p) {
+      return p.symbol === symbol &&
+        (!fromTs || p.timestamp >= fromTs) && (!toTs || p.timestamp <= toTs);
+    })
+    .sort(function(a, b) { return a.timestamp - b.timestamp; });
+
+  var ft = state.trades
+    .filter(function(t) {
+      return t.symbol === symbol &&
+        (!fromTs || t.timestamp >= fromTs) && (!toTs || t.timestamp <= toTs);
+    })
+    .sort(function(a, b) { return a.timestamp - b.timestamp; });
+
+  var enriched = computeAnalytics(ft);
+  var lines    = [];
+
+  lines.push('# PRICES');
+  lines.push('date,symbol,close,open,high,low,volume');
+  fp.forEach(function(p) {
+    lines.push([
+      toDateInput(p.timestamp), p.symbol,
+      p.close != null ? p.close : '',
+      p.open  != null ? p.open  : '',
+      p.high  != null ? p.high  : '',
+      p.low   != null ? p.low   : '',
+      p.volume != null ? p.volume : '',
+    ].join(','));
+  });
+
+  lines.push('');
+  lines.push('# TRADES (avg-cost P&L)');
+  lines.push('date,symbol,side,qty,exec_price,strategy,notes,trade_pnl,cumul_pnl,position_after,avg_cost');
+  enriched.forEach(function(t) {
+    lines.push([
+      toDateInput(t.timestamp), t.symbol, t.side, t.qty, t.price,
+      '"' + (t.strategy || '').replace(/"/g, '""') + '"',
+      '"' + (t.notes    || '').replace(/"/g, '""') + '"',
+      t.tradePnL != null ? t.tradePnL.toFixed(2) : '',
+      t.cumulPnL.toFixed(2),
+      t.position,
+      t.avgCost.toFixed(2),
+    ].join(','));
+  });
+
+  var blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url;
+  a.download = symbol + '_' + (dateFrom || 'all') + '_' + (dateTo || 'end') + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* =============================================================
+   MAPPING UI HELPERS
+   ============================================================= */
+
+function populateSheetSelectors(sheetNames) {
+  var pSel = document.getElementById('sheet-prices-sel');
+  var tSel = document.getElementById('sheet-trades-sel');
+  pSel.innerHTML = '';
+  tSel.innerHTML = '';
+  sheetNames.forEach(function(name) {
+    var o1 = document.createElement('option'); o1.value = o1.textContent = name; pSel.appendChild(o1);
+    var o2 = document.createElement('option'); o2.value = o2.textContent = name; tSel.appendChild(o2);
+  });
+  // Pre-select sensible defaults
+  function findSheet(names, kws) {
+    return names.find(function(n) { return kws.some(function(k) { return n.toLowerCase() === k; }); }) ||
+           names.find(function(n) { return kws.some(function(k) { return n.toLowerCase().includes(k); }); });
+  }
+  var pd = findSheet(sheetNames, ['prices','price','ohlc','ohlcv','quotes','market','data']);
+  var td = findSheet(sheetNames, ['trades','trade','orders','order','fills','blotter','transactions']);
+  if (pd) pSel.value = pd;
+  if (td) tSel.value = td;
+}
+
+function populateColDropdowns(priceHdrs, tradeHdrs) {
+  function fill(id, hdrs, required) {
+    var sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = '';
+    if (!required) sel.innerHTML = '<option value="">\u2014 skip \u2014</option>';
+    hdrs.forEach(function(h) {
+      var o = document.createElement('option'); o.value = o.textContent = h; sel.appendChild(o);
+    });
+  }
+  ['col-p-ts','col-p-sym','col-p-close'].forEach(function(id) { fill(id, priceHdrs, true);  });
+  ['col-p-open','col-p-high','col-p-low','col-p-vol','col-p-adj'].forEach(function(id) { fill(id, priceHdrs, false); });
+  ['col-t-ts','col-t-sym','col-t-side','col-t-qty','col-t-price'].forEach(function(id) { fill(id, tradeHdrs, true);  });
+  ['col-t-strat','col-t-notes'].forEach(function(id) { fill(id, tradeHdrs, false); });
+}
+
+function preSelectCols(pm, tm) {
+  function sv(id, v) { var el = document.getElementById(id); if (el && v) el.value = v; }
+  sv('col-p-ts', pm.ts); sv('col-p-sym', pm.sym); sv('col-p-close', pm.close);
+  sv('col-p-open', pm.open); sv('col-p-high', pm.high); sv('col-p-low', pm.low);
+  sv('col-p-vol', pm.vol); sv('col-p-adj', pm.adj);
+  sv('col-t-ts', tm.ts); sv('col-t-sym', tm.sym); sv('col-t-side', tm.side);
+  sv('col-t-qty', tm.qty); sv('col-t-price', tm.price);
+  sv('col-t-strat', tm.strat); sv('col-t-notes', tm.notes);
+}
+
+function gv(id) { var el = document.getElementById(id); return el ? el.value : ''; }
+
+function applyMappingFromUI() {
+  if (!state._rawPRows || !state._rawTRows) return;
+  var pm = {
+    ts: gv('col-p-ts'), sym: gv('col-p-sym'), close: gv('col-p-close'),
+    open: gv('col-p-open'), high: gv('col-p-high'), low: gv('col-p-low'),
+    vol: gv('col-p-vol'), adj: gv('col-p-adj'),
+  };
+  var tm = {
+    ts: gv('col-t-ts'), sym: gv('col-t-sym'), side: gv('col-t-side'),
+    qty: gv('col-t-qty'), price: gv('col-t-price'),
+    strat: gv('col-t-strat'), notes: gv('col-t-notes'),
+  };
+  state.prices = buildPrices(state._rawPRows, pm);
+  state.trades = buildTrades(state._rawTRows, tm);
+  refreshUI();
+  document.getElementById('mapping-section').style.display = 'none';
+}
+
+/* =============================================================
+   WORKBOOK PARSER
+   Auto-detects sheet names and column headers. Falls back to the
+   mapping UI if detection is ambiguous or required columns are missing.
+   ============================================================= */
+function parseWorkbook(wb) {
+  state._rawWorkbook = wb;
+  var sheetNames     = wb.SheetNames;
+  setStatus('Sheets found: ' + sheetNames.join(', '));
+
+  function findSheet(names, kws) {
+    return names.find(function(n) { return kws.some(function(k) { return n.toLowerCase() === k; }); }) ||
+           names.find(function(n) { return kws.some(function(k) { return n.toLowerCase().includes(k); }); });
+  }
+
+  var ps = findSheet(sheetNames, ['prices','price','ohlc','ohlcv','quotes','market','data']);
+  var ts = findSheet(sheetNames, ['trades','trade','orders','order','fills','blotter','transactions']);
+
+  // Show mapping UI if sheets are ambiguous or identical
+  if (!ps || !ts || ps === ts) {
+    document.getElementById('mapping-section').style.display = 'block';
+    populateSheetSelectors(sheetNames);
+    var ns1 = ps || sheetNames[0];
+    var ns2 = ts || sheetNames[Math.min(1, sheetNames.length - 1)];
+    var r1  = wsToObjects(wb.Sheets[ns1]);
+    var r2  = wsToObjects(wb.Sheets[ns2]);
+    state._rawPRows = r1.rows; state._rawTRows = r2.rows;
+    populateColDropdowns(r1.headers, r2.headers);
+    preSelectCols(autoMapCols(r1.headers, 'prices'), autoMapCols(r2.headers, 'trades'));
+    setStatus('Please confirm sheet selection and column mapping, then click "Apply & Render".', 'error');
+    return;
+  }
+
+  var pr = wsToObjects(wb.Sheets[ps]);
+  var tr = wsToObjects(wb.Sheets[ts]);
+  var pm = autoMapCols(pr.headers, 'prices');
+  var tm = autoMapCols(tr.headers, 'trades');
+
+  var missP = ['ts','sym','close'].filter(function(f) { return !pm[f]; });
+  var missT = ['ts','sym','side','qty','price'].filter(function(f) { return !tm[f]; });
+
+  if (missP.length || missT.length) {
+    document.getElementById('mapping-section').style.display = 'block';
+    populateSheetSelectors(sheetNames);
+    document.getElementById('sheet-prices-sel').value = ps;
+    document.getElementById('sheet-trades-sel').value = ts;
+    populateColDropdowns(pr.headers, tr.headers);
+    preSelectCols(pm, tm);
+    state._rawPRows = pr.rows; state._rawTRows = tr.rows;
+    var msgs = [];
+    if (missP.length) msgs.push('Prices missing: ' + missP.join(', '));
+    if (missT.length) msgs.push('Trades missing: ' + missT.join(', '));
+    setStatus('Column mapping needed. ' + msgs.join('; '), 'error');
+    return;
+  }
+
+  state.prices    = buildPrices(pr.rows, pm);
+  state.trades    = buildTrades(tr.rows, tm);
+  state._rawPRows = pr.rows;
+  state._rawTRows = tr.rows;
+
+  // Offer adj_close in the price field selector if the data has it
+  var hasAdj = state.prices.some(function(p) { return p.adj_close != null && !isNaN(p.adj_close); });
+  var pfSel  = document.getElementById('price-field-sel');
+  pfSel.innerHTML = '<option value="close">Close</option>';
+  if (hasAdj) pfSel.innerHTML += '<option value="adj_close">Adj Close</option>';
+
+  document.getElementById('mapping-section').style.display = 'none';
+  refreshUI();
+}
+
+/* =============================================================
+   REFRESH UI  (called whenever state.prices / state.trades change)
+   ============================================================= */
+function refreshUI() {
+  var symbols = getAllSymbols(state.prices, state.trades);
+  var symSel  = document.getElementById('symbol-sel');
+  var prevSym = symSel.value;
+
+  symSel.innerHTML = '';
+  symbols.forEach(function(s) {
+    var o = document.createElement('option'); o.value = o.textContent = s; symSel.appendChild(o);
+  });
+  if (prevSym && symbols.indexOf(prevSym) !== -1) symSel.value = prevSym;
+
+  // Set date range for current symbol
+  var sym = symSel.value;
+  if (sym) {
+    var dr = pricesDateRange(state.prices, sym);
+    if (dr.min) document.getElementById('date-from').value = toDateInput(dr.min);
+    if (dr.max) document.getElementById('date-to').value   = toDateInput(dr.max);
+  }
+
+  // Demo badge
+  document.getElementById('demo-badge').style.display = state.usingDemo ? '' : 'none';
+
+  setStatus(
+    'Loaded ' + state.prices.length + ' price rows and ' + state.trades.length + ' trade rows' +
+    (state.usingDemo ? ' (demo data)' : ''),
+    state.usingDemo ? '' : 'ok'
+  );
+
+  renderChart();
+}
+
+/* =============================================================
+   EVENT LISTENERS
+   ============================================================= */
+
+document.getElementById('file-input').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('file-name').textContent = file.name;
+  setStatus('Parsing\u2026');
+  state.usingDemo = false;
+
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      var data = new Uint8Array(ev.target.result);
+      // cellDates:false so we receive raw Excel serial numbers for parseTimestamp()
+      var wb = XLSX.read(data, { type: 'array', cellDates: false });
+      parseWorkbook(wb);
+    } catch(err) {
+      setStatus('Error parsing file: ' + err.message, 'error');
+    }
+  };
+  reader.onerror = function() { setStatus('File read error.', 'error'); };
+  reader.readAsArrayBuffer(file);
+});
+
+document.getElementById('reset-btn').addEventListener('click', function() {
+  state.prices        = DEMO_PRICES;
+  state.trades        = DEMO_TRADES;
+  state.usingDemo     = true;
+  state._rawWorkbook  = null;
+  state._rawPRows     = null;
+  state._rawTRows     = null;
+  document.getElementById('file-input').value       = '';
+  document.getElementById('file-name').textContent  = '';
+  document.getElementById('mapping-section').style.display = 'none';
+  document.getElementById('price-field-sel').innerHTML     = '<option value="close">Close</option>';
+  refreshUI();
+});
+
+document.getElementById('symbol-sel').addEventListener('change', function() {
+  var sym = document.getElementById('symbol-sel').value;
+  var dr  = pricesDateRange(state.prices, sym);
+  if (dr.min) document.getElementById('date-from').value = toDateInput(dr.min);
+  if (dr.max) document.getElementById('date-to').value   = toDateInput(dr.max);
+  renderChart();
+});
+
+['date-from','date-to','price-field-sel'].forEach(function(id) {
+  document.getElementById(id).addEventListener('change', renderChart);
+});
+
+['chk-buy','chk-sell','chk-pnl'].forEach(function(id) {
+  document.getElementById(id).addEventListener('change', renderChart);
+});
+
+document.getElementById('dl-png-btn').addEventListener('click', downloadPNG);
+document.getElementById('dl-csv-btn').addEventListener('click', downloadCSV);
+
+document.getElementById('apply-mapping-btn').addEventListener('click', function() {
+  var wb = state._rawWorkbook;
+  if (wb) {
+    var ps = document.getElementById('sheet-prices-sel').value;
+    var ts = document.getElementById('sheet-trades-sel').value;
+    var r1 = wsToObjects(wb.Sheets[ps]);
+    var r2 = wsToObjects(wb.Sheets[ts]);
+    state._rawPRows = r1.rows; state._rawTRows = r2.rows;
+    populateColDropdowns(r1.headers, r2.headers);
+    preSelectCols(autoMapCols(r1.headers, 'prices'), autoMapCols(r2.headers, 'trades'));
+  }
+  applyMappingFromUI();
+});
+
+['sheet-prices-sel','sheet-trades-sel'].forEach(function(id) {
+  document.getElementById(id).addEventListener('change', function() {
+    var wb = state._rawWorkbook;
+    if (!wb) return;
+    var ps = document.getElementById('sheet-prices-sel').value;
+    var ts = document.getElementById('sheet-trades-sel').value;
+    var r1 = wsToObjects(wb.Sheets[ps]);
+    var r2 = wsToObjects(wb.Sheets[ts]);
+    state._rawPRows = r1.rows; state._rawTRows = r2.rows;
+    populateColDropdowns(r1.headers, r2.headers);
+    preSelectCols(autoMapCols(r1.headers, 'prices'), autoMapCols(r2.headers, 'trades'));
+  });
+});
+
+/* =============================================================
+   INIT — render demo data immediately when the page loads
+   ============================================================= */
+(function init() {
+  state.prices    = DEMO_PRICES;
+  state.trades    = DEMO_TRADES;
+  state.usingDemo = true;
+  refreshUI();
+})();
+</script>
+</body>
 </html>

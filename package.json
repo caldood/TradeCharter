@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "generate-sample": "tsx scripts/generateSample.ts"
+    "generate-sample": "tsx scripts/generateSample.ts",
+    "serve": "tsx scripts/server.ts"
   },
   "dependencies": {
     "echarts": "^5.5.1",

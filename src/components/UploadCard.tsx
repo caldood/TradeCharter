@@ -4,11 +4,12 @@ import { downloadSampleTemplate } from '../utils/generateSampleData';
 interface UploadCardProps {
   onFile: (file: File) => void;
   isLoading: boolean;
+  onLoadSample?: () => void;
 }
 
 const ACCEPTED = '.xlsx,.xls,.csv';
 
-export function UploadCard({ onFile, isLoading }: UploadCardProps) {
+export function UploadCard({ onFile, isLoading, onLoadSample }: UploadCardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -109,7 +110,19 @@ export function UploadCard({ onFile, isLoading }: UploadCardProps) {
       </div>
 
       {/* Actions */}
-      <div className="flex justify-center">
+      <div className="flex flex-wrap justify-center gap-3">
+        {onLoadSample && (
+          <button
+            className="btn-primary text-xs"
+            onClick={(e) => { e.stopPropagation(); onLoadSample(); }}
+            disabled={isLoading}
+          >
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clipRule="evenodd" />
+            </svg>
+            Load sample data
+          </button>
+        )}
         <button
           className="btn-secondary text-xs"
           onClick={(e) => {

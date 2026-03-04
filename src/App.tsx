@@ -6,6 +6,7 @@ import { TradeChart } from './components/TradeChart';
 import { DataPreview } from './components/DataPreview';
 import { ErrorPanel } from './components/ErrorPanel';
 import { parseExcel } from './utils/parseExcel';
+import { loadSampleFromServer } from './utils/loadSample';
 import type { ParsedResult, FilterState, ChartMode } from './types';
 
 // ─── Logo / Header ────────────────────────────────────────────────────────────
@@ -77,6 +78,22 @@ export default function App() {
     }
   }, []);
 
+  const handleLoadSample = useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const parsed = await loadSampleFromServer();
+      setResult(parsed);
+      setFilters({ ticker: 'All', action: 'All', strategy: 'All', portfolio: 'All' });
+    } catch (err) {
+      setLoadError(
+        err instanceof Error ? err.message : 'Failed to load sample data from server.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   const handleReset = useCallback(() => {
     setResult(null);
     setLoadError(null);
@@ -110,7 +127,7 @@ export default function App() {
 
         {!result ? (
           /* ── Landing ── */
-          <UploadCard onFile={handleFile} isLoading={isLoading} />
+          <UploadCard onFile={handleFile} isLoading={isLoading} onLoadSample={handleLoadSample} />
         ) : (
           /* ── Dashboard ── */
           <div className="space-y-4">
